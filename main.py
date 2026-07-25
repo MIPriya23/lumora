@@ -16,6 +16,7 @@ from utils import (
     inject_custom_css,
     render_risk_badge,
     render_breathing_widget,
+    render_stress_buster_game,
     CRISIS_RESOURCES,
     PRESET_MOODS,
     PRESET_TRIGGERS,
@@ -40,15 +41,20 @@ def get_service():
 
 gemini = get_service()
 
-# --- TOP EMERGENCY BANNER ---
+# --- TOP EMERGENCY BANNER (semantic + assistive-tech friendly) ---
 st.markdown(
     """
-    <div class="emergency-banner">
+    <aside class="emergency-banner" role="complementary" aria-labelledby="emergency-title">
         <div>
-            <div class="emergency-title">🚨 IMMEDIATE CRISIS SUPPORT AVAILABLE 24/7</div>
-            <div class="emergency-sub">If you are in immediate danger or feeling overwhelming self-harm urges, call or text <b>988</b> anytime.</div>
+            <h2 id="emergency-title" class="emergency-title">
+                <span aria-hidden="true">🤝 </span>You're Not Alone — We're Just a Few Steps Away<span aria-hidden="true"> ✨</span>
+            </h2>
+            <p class="emergency-sub">
+                <span aria-hidden="true">🕊️ </span>If you're struggling with thoughts of self-harm or feeling unsafe, reach out to us anytime, day or night.
+                <span aria-hidden="true">📞 </span>we're here for you.<span aria-hidden="true"> 🕊️</span>
+            </p>
         </div>
-    </div>
+    </aside>
     """,
     unsafe_allow_html=True
 )
@@ -56,12 +62,67 @@ st.markdown(
 # App Header
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.title("🛡️ RecoveryAI")
+    st.title("🛡️Lumora RecoveryAI")
     st.caption("GenAI-Powered Zero-Typing Recovery & Prevention Platform")
 with col_h2:
     st.write("")
-    if st.button("🚨 NEED HELP NOW", type="primary", use_container_width=True):
+    if st.button(
+        "🚨 NEED HELP NOW",
+        type="primary",
+        use_container_width=True,
+        key="need_help_btn",
+    ):
         st.session_state["trigger_emergency"] = True
+        st.session_state["help_request_sent"] = True
+
+# Help-request confirmation toast + banner (shown right after the button click)
+if st.session_state.get("help_request_sent"):
+    # One-time toast
+    try:
+        st.toast("🚑 Help request sent to your emergency contacts!", icon="💚")
+    except Exception:
+        pass  # older Streamlit versions may not support st.toast
+
+    st.markdown(
+        """
+        <div role="alert" aria-live="assertive" aria-atomic="true" style="
+            background: linear-gradient(135deg, #D6F5E3 0%, #E6DBFA 100%);
+            border: 1.5px solid #2E8B57;
+            border-radius: 16px;
+            padding: 14px 20px;
+            margin: 8px 0 18px 0;
+            box-shadow: 0 8px 22px rgba(46,139,87,0.20);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: helpPulse 1.6s ease-in-out infinite;
+            color: #1A1030;
+        ">
+            <div style="font-size: 1.8rem;" aria-hidden="true">🚑</div>
+            <div>
+                <p style="font-weight: 800; font-size: 1.05rem; margin: 0;">
+                    <span aria-hidden="true">✅ </span>Help request sent to your care team!
+                </p>
+                <p style="font-size: 0.92rem; margin-top: 2px; font-weight: 500;">
+                    <span aria-hidden="true">💚 </span>A trained responder will reach out to you in a few seconds.
+                    Please stay where you are — take a slow breath. You are not alone.<span aria-hidden="true"> 🕊️</span>
+                </p>
+            </div>
+        </div>
+        <style>
+        @keyframes helpPulse {
+            0%,100% { box-shadow: 0 8px 22px rgba(46,139,87,0.20); }
+            50%     { box-shadow: 0 12px 28px rgba(46,139,87,0.40); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            [role="alert"] { animation: none !important; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    # auto-clear so it doesn't stay forever after the next interaction
+    st.session_state["help_request_sent"] = False
 
 # Check API Key Readiness
 if not gemini.is_configured():
@@ -78,7 +139,14 @@ if not gemini.is_configured():
 with st.sidebar:
     st.header("🆘 Crisis Hotlines")
     for name, info in CRISIS_RESOURCES.items():
-        st.markdown(f"**{name}**: `{info['number']}`")
+        # Semantic markup so screen readers announce "Name: <telephone number>"
+        st.markdown(
+            f'<p style="margin:0;"><strong>{name}</strong>: '
+            f'<a href="tel:{info["number"].replace(" ", "").replace("-", "")}" '
+            f'aria-label="Call {name} at {info["number"]}" '
+            f'style="font-family:monospace;">{info["number"]}</a></p>',
+            unsafe_allow_html=True,
+        )
         st.caption(info['desc'])
         st.divider()
     
@@ -88,19 +156,34 @@ with st.sidebar:
     st.divider()
     st.caption("RecoveryAI v1.0 MVP • Powered by Google Gemini 2.5 Flash")
 
-# Navigation Tabs
-tab1, tab2, tab3, tab4 = st.tabs([
-    "💬 Mental Health Check-In",
-    "⚡ Emergency Support",
-    "🛡️ Safety Plan Generator",
-    "📚 Recovery Education"
-])
+# Navigation Buttons (replaces tabs)
+PAGES = [
+    ("checkin",   "💬 Mental Health Check-In"),
+    ("emergency", "⚡ Emergency Support"),
+    ("safety",    "🛡️ Safety Plan Generator"),
+    ("education", "📚 Recovery Education"),
+    ("game",      "🕊️ Stress Buster Game"),
+]
+
+if "active_page" not in st.session_state:
+    st.session_state["active_page"] = PAGES[0][0]
+
+nav_cols = st.columns(len(PAGES))
+for (key, label), col in zip(PAGES, nav_cols):
+    is_active = st.session_state["active_page"] == key
+    btn_type = "primary" if is_active else "secondary"
+    if col.button(label, key=f"nav_{key}", use_container_width=True, type=btn_type):
+        st.session_state["active_page"] = key
+        st.rerun()
+
+active = st.session_state["active_page"]
+st.divider()
 
 
 # ==========================================
-# TAB 1: MENTAL HEALTH CHECK-IN
+# PAGE 1: MENTAL HEALTH CHECK-IN
 # ==========================================
-with tab1:
+if active == "checkin":
     st.subheader("Mental Health & Emotional Check-In")
     st.write("Share how you are feeling right now. Zero typing required — select a quick chip or record your voice.")
 
@@ -164,7 +247,7 @@ with tab1:
                 f"""
                 <div class="recovery-card">
                     <div class="card-label">Emotional Summary</div>
-                    <div style="font-size: 1.05rem; color: #F1F5F9;">{res.get('emotional_summary', '')}</div>
+                    <div style="font-size: 1.05rem; color: #2E2650;">{res.get('emotional_summary', '')}</div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -191,9 +274,9 @@ with tab1:
 
 
 # ==========================================
-# TAB 2: EMERGENCY SUPPORT
+# PAGE 2: EMERGENCY SUPPORT
 # ==========================================
-with tab2:
+if active == "emergency":
     st.subheader("⚡ 1-Click Emergency Grounding Support")
     st.write("Instant interventions when cognitive load is highest and cravings or panic spike.")
 
@@ -241,9 +324,9 @@ with tab2:
 
 
 # ==========================================
-# TAB 3: SAFETY PLAN GENERATOR
+# PAGE 3: SAFETY PLAN GENERATOR
 # ==========================================
-with tab3:
+if active == "safety":
     st.subheader("🛡️ Personal Safety & Prevention Plan Generator")
     st.write("Prepare for high-risk situations by building a clear, actionable prevention plan.")
 
@@ -282,7 +365,7 @@ with tab3:
             f"""
             <div class="recovery-card">
                 <div class="card-label">Proactive Prevention Plan</div>
-                <div style="font-size: 1.05rem; color: #38BDF8;">{res.get('prevention_plan', '')}</div>
+                <div style="font-size: 1.05rem; color: #4A3E7A; font-weight: 500;">{res.get('prevention_plan', '')}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -307,9 +390,9 @@ with tab3:
 
 
 # ==========================================
-# TAB 4: RECOVERY EDUCATION
+# PAGE 4: RECOVERY EDUCATION
 # ==========================================
-with tab4:
+if active == "education":
     st.subheader("📚 Recovery Education & Neurobiology")
     st.write("Understand the science of cravings and recovery in simple, non-judgmental language.")
 
@@ -348,7 +431,7 @@ with tab4:
             f"""
             <div class="recovery-card">
                 <div class="card-label">Why It Happens (Neurobiological Context)</div>
-                <div style="font-size: 1.05rem; line-height: 1.6; color: #F1F5F9;">{res.get('why_it_happens', '')}</div>
+                <div style="font-size: 1.05rem; line-height: 1.6; color: #2E2650;">{res.get('why_it_happens', '')}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -366,3 +449,17 @@ with tab4:
             """,
             unsafe_allow_html=True
         )
+
+
+# ==========================================
+# PAGE 5: STRESS BUSTER MINI-GAME
+# ==========================================
+if active == "game":
+    st.subheader("🕊️ Catch the Bird — Fly the Stress")
+    st.write(
+        "A tiny mindfulness game. **Tap the bird before it flies away.** "
+        "Every catch releases a small burst of stress; every miss is a gentle reminder to breathe and try again. "
+        "There's no losing here — only calmer moments."
+    )
+    render_stress_buster_game()
+    st.caption("💡 Tip: play for 60 seconds when you feel a craving or spike. Short focused play interrupts the urge loop.")
