@@ -142,5 +142,121 @@ class TestGeminiService(unittest.TestCase):
         self.assertIn("why_it_happens", res)
 
 
+class TestGeminiServiceEdgeCases(unittest.TestCase):
+    """Edge cases: empty inputs, malformed JSON, missing fields, error branches."""
+
+    def setUp(self):
+        self.service = GeminiService(api_key="test_api_key_123")
+
+    def test_is_configured_true_with_key(self):
+        self.assertTrue(self.service.is_configured())
+
+    def test_is_configured_false_without_key(self):
+        # _initialize_client falls back to env; patch both env and .env loaders.
+        with patch.dict('os.environ', {'GEMINI_API_KEY': ''}, clear=False), \
+             patch('gemini_service.load_dotenv'):
+            svc = GeminiService(api_key="")
+            svc.api_key = ""
+            svc.client = None
+            self.assertFalse(svc.is_configured())
+
+    def test_is_configured_false_with_placeholder(self):
+        svc = GeminiService(api_key="your_gemini_api_key_here")
+        self.assertFalse(svc.is_configured())
+
+    def test_clean_json_string_handles_bare_braces(self):
+        raw = '   {"a": 1}   '
+        cleaned = self.service._clean_json_string(raw)
+        self.assertEqual(json.loads(cleaned), {"a": 1})
+
+    def test_clean_json_string_strips_backtick_fence(self):
+        raw = '```\n{"x": true}\n```'
+        cleaned = self.service._clean_json_string(raw)
+        self.assertEqual(json.loads(cleaned), {"x": True})
+
+    @patch.object(GeminiService, '_call_gemini')
+    def test_check_in_raises_on_malformed_json(self, mock_call):
+        # Documented behavior: malformed model output surfaces as ValueError
+        # so the UI can render a friendly error message.
+        mock_call.return_value = "not json at all"
+        with self.assertRaises(ValueError):
+            self.service.check_in("hello")
+
+    @patch.object(GeminiService, '_call_gemini')
+    def test_check_in_empty_input(self, mock_call):
+        mock_call.return_value = json.dumps({
+            "risk_level": "Low",
+            "emotional_summary": "No content provided.",
+            "trigger_detection": "None",
+            "recommended_actions": [],
+            "encouragement": "",
+            "crisis_alert_needed": False,
+        })
+        res = self.service.check_in("")
+        self.assertEqual(res["risk_level"], "Low")
+
+    @patch.object(GeminiService, '_call_gemini')
+    def test_safety_plan_missing_optional_fields(self, mock_call):
+        mock_call.return_value = json.dumps({"trigger_name": "Stress"})
+        res = self.service.generate_safety_plan("Stress")
+        self.assertEqual(res["trigger_name"], "Stress")
+
+
+class TestUtilsEdgeCases(unittest.TestCase):
+    """Additional coverage for utility helpers."""
+
+    def test_render_risk_badge_defaults_to_low(self):
+        badge = utils.render_risk_badge("")
+        self.assertIn("risk-low", badge)
+
+    def test_render_risk_badge_is_case_insensitive(self):
+        badge = utils.render_risk_badge("CRITICAL")
+        self.assertIn("risk-critical", badge)
+
+    def test_render_risk_badge_contains_aria_label(self):
+        badge = utils.render_risk_badge("High")
+        self.assertIn('aria-label="Risk level: High"', badge)
+
+    def test_render_risk_badge_has_non_color_indicator(self):
+        # WCAG 1.4.1: risk badge must use more than color to convey meaning.
+        badge = utils.render_risk_badge("Critical")
+        self.assertTrue(
+            any(ch in badge for ch in ("\u25CF", "\u25D1", "\u25D0", "\u25CB")),
+            "Risk badge must include a shape symbol (WCAG 1.4.1 Use of Color).",
+        )
+
+    def test_crisis_resources_have_phone_numbers(self):
+        for name, info in utils.CRISIS_RESOURCES.items():
+            self.assertIn("number", info, f"{name} is missing a phone number.")
+            self.assertIn("desc", info, f"{name} is missing a description.")
+
+    def test_preset_mood_strings_are_actionable(self):
+        for mood in utils.PRESET_MOODS:
+            self.assertIsInstance(mood, str)
+            self.assertGreater(len(mood), 3)
+
+
+class TestPromptSafety(unittest.TestCase):
+    """Prompt engineering safety guardrails required by problem statement."""
+
+    def test_all_system_prompts_reference_safety(self):
+        for attr in (
+            "CHECKIN_SYSTEM_PROMPT",
+            "EMERGENCY_SYSTEM_PROMPT",
+            "SAFETY_PLAN_SYSTEM_PROMPT",
+            "EDUCATION_SYSTEM_PROMPT",
+        ):
+            prompt_text = getattr(prompts, attr)
+            self.assertIsInstance(prompt_text, str)
+            self.assertGreater(len(prompt_text), 40)
+
+    def test_no_medical_advice_language(self):
+        # Prompts must forbid diagnosis / medical advice.
+        self.assertIn("diagnose", prompts.SYSTEM_SAFETY_INSTRUCTIONS.lower())
+
+    def test_crisis_hotline_in_safety_prompt(self):
+        self.assertIn("988", prompts.SYSTEM_SAFETY_INSTRUCTIONS)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

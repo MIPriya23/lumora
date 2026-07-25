@@ -174,10 +174,19 @@ def inject_custom_css():
     /* HIDE default header icons/buttons (menu, deploy, decoration strip) — keep status widget */
     [data-testid="stMainMenu"],
     [data-testid="stDeployButton"],
+    [data-testid="stAppDeployButton"],
+    [data-testid="stToolbar"] [data-testid="stDeployButton"],
+    [data-testid="stToolbarActions"],
     [data-testid="stDecoration"],
     header [data-testid="baseButton-header"],
-    header [data-testid="baseButton-headerNoPadding"]:not([kind="headerNoPadding"]) {
+    header [data-testid="baseButton-headerNoPadding"]:not([kind="headerNoPadding"]),
+    .stDeployButton,
+    .stAppDeployButton,
+    button[kind="header"][title*="Deploy" i],
+    button[title*="Deploy" i],
+    a[title*="Deploy" i] {
         display: none !important;
+        visibility: hidden !important;
     }
 
     /* --- IDLE STATE: Always-visible "Stable Man" attached to the header --- */
@@ -697,6 +706,48 @@ def inject_custom_css():
     /* Fallback: kill any remaining dark filter */
     [data-testid="stAudioInput"] [style*="background"] {
         background-color: transparent !important;
+    }
+
+    /* ==== NUKE THE BLACK SQUARE ==== */
+    /* Streamlit's audio input renders a waveform placeholder rectangle
+       (canvas / svg / div with dark inline bg) that shows as a black
+       square on light themes. Force every possible surface transparent
+       and every pseudo-element off. */
+    [data-testid="stAudioInput"] canvas,
+    [data-testid="stAudioInput"] svg,
+    [data-testid="stAudioInput"] svg rect,
+    [data-testid="stAudioInput"] [class*="Waveform"],
+    [data-testid="stAudioInput"] [class*="waveform"],
+    [data-testid="stAudioInput"] [class*="WaveSurfer"],
+    [data-testid="stAudioInput"] [class*="wavesurfer"],
+    [data-testid="stAudioInput"] [class*="Placeholder"],
+    [data-testid="stAudioInput"] [class*="placeholder"],
+    [data-testid="stAudioInput"] [class*="Progress"],
+    [data-testid="stAudioInput"] [class*="progress"],
+    [data-testid="stAudioInput"] [class*="Track"],
+    [data-testid="stAudioInput"] [class*="track"] {
+        background: transparent !important;
+        background-color: transparent !important;
+        background-image: none !important;
+        fill: transparent !important;
+    }
+    /* Any bare <rect> inside SVG (Streamlit uses filled rects as waveform bg) */
+    [data-testid="stAudioInput"] svg rect[fill="#000"],
+    [data-testid="stAudioInput"] svg rect[fill="black"],
+    [data-testid="stAudioInput"] svg rect[fill="#000000"] {
+        fill: rgba(233,225,255,0.4) !important;
+    }
+    /* Kill decorative ::before / ::after overlays that some builds use */
+    [data-testid="stAudioInput"] *::before,
+    [data-testid="stAudioInput"] *::after {
+        background: transparent !important;
+        background-color: transparent !important;
+    }
+    /* Ensure the waveform bars themselves stay visible in accent purple */
+    [data-testid="stAudioInput"] svg path,
+    [data-testid="stAudioInput"] svg line,
+    [data-testid="stAudioInput"] svg polyline {
+        stroke: #6C4DBA !important;
     }
 
     </style>

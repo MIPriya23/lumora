@@ -1,14 +1,16 @@
 """
 RecoveryAI - Multi-modal GenAI Recovery & Prevention Platform MVP
-Entry point for Streamlit application.
+Entry point for the Streamlit application.
+
+The Gemini API key is loaded from a local .env file (see .env.example).
+NEVER commit real API keys to source control.
 """
 
+import html
 import streamlit as st
-import os
-import json
 from dotenv import load_dotenv
 
-# Load environment
+# Load environment variables from .env before importing service modules.
 load_dotenv()
 
 from gemini_service import GeminiService
@@ -20,13 +22,18 @@ from utils import (
     CRISIS_RESOURCES,
     PRESET_MOODS,
     PRESET_TRIGGERS,
-    PRESET_EDU_TOPICS
+    PRESET_EDU_TOPICS,
 )
+
+
+def _safe(text: object) -> str:
+    """Return ``text`` coerced to str and HTML-escaped for safe rendering."""
+    return html.escape("" if text is None else str(text), quote=True)
 
 # Page Configuration
 st.set_page_config(
-    page_title="RecoveryAI - GenAI Recovery & Prevention",
-    page_icon="🛡️",
+    page_title="Lumora - GenAI Recovery & Prevention",
+    page_icon="♾️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -62,7 +69,7 @@ st.markdown(
 # App Header
 col_h1, col_h2 = st.columns([3, 1])
 with col_h1:
-    st.title("🛡️Lumora RecoveryAI")
+    st.title("♾️Lumora RecoveryAI")
     st.caption("GenAI-Powered Zero-Typing Recovery & Prevention Platform")
 with col_h2:
     st.write("")
@@ -77,11 +84,12 @@ with col_h2:
 
 # Help-request confirmation toast + banner (shown right after the button click)
 if st.session_state.get("help_request_sent"):
-    # One-time toast
+    # One-time toast (silently ignored on Streamlit versions that lack st.toast)
     try:
         st.toast("🚑 Help request sent to your emergency contacts!", icon="💚")
-    except Exception:
-        pass  # older Streamlit versions may not support st.toast
+    except AttributeError:
+        # st.toast introduced in Streamlit 1.27; older versions have no attribute.
+        pass
 
     st.markdown(
         """
@@ -137,14 +145,24 @@ if not gemini.is_configured():
 
 # Sidebar Info & Emergency Contacts
 with st.sidebar:
+    st.markdown(
+        '<a href="#main-content" class="sr-only" '
+        'style="position:absolute;left:-999px;top:auto;" '
+        'onfocus="this.style.left=\'8px\';this.style.top=\'8px\';" '
+        'onblur="this.style.left=\'-999px\';">Skip to main content</a>',
+        unsafe_allow_html=True,
+    )
     st.header("🆘 Crisis Hotlines")
     for name, info in CRISIS_RESOURCES.items():
+        safe_name = _safe(name)
+        safe_number = _safe(info["number"])
+        tel_href = _safe("".join(ch for ch in info["number"] if ch.isdigit() or ch == "+"))
         # Semantic markup so screen readers announce "Name: <telephone number>"
         st.markdown(
-            f'<p style="margin:0;"><strong>{name}</strong>: '
-            f'<a href="tel:{info["number"].replace(" ", "").replace("-", "")}" '
-            f'aria-label="Call {name} at {info["number"]}" '
-            f'style="font-family:monospace;">{info["number"]}</a></p>',
+            f'<p style="margin:0;"><strong>{safe_name}</strong>: '
+            f'<a href="tel:{tel_href}" '
+            f'aria-label="Call {safe_name} at {safe_number}" '
+            f'style="font-family:monospace;">{safe_number}</a></p>',
             unsafe_allow_html=True,
         )
         st.caption(info['desc'])
@@ -160,7 +178,7 @@ with st.sidebar:
 PAGES = [
     ("checkin",   "💬 Mental Health Check-In"),
     ("emergency", "⚡ Emergency Support"),
-    ("safety",    "🛡️ Safety Plan Generator"),
+    ("safety",    "♾️ Safety Plan Generator"),
     ("education", "📚 Recovery Education"),
     ("game",      "🕊️ Stress Buster Game"),
 ]
@@ -178,6 +196,9 @@ for (key, label), col in zip(PAGES, nav_cols):
 
 active = st.session_state["active_page"]
 st.divider()
+
+# Landmark for skip-nav + AT navigation (WCAG 1.3.1 / 2.4.1).
+st.markdown('<main id="main-content" role="main" aria-label="Main content">', unsafe_allow_html=True)
 
 
 # ==========================================
@@ -247,7 +268,7 @@ if active == "checkin":
                 f"""
                 <div class="recovery-card">
                     <div class="card-label">Emotional Summary</div>
-                    <div style="font-size: 1.05rem; color: #2E2650;">{res.get('emotional_summary', '')}</div>
+                    <div style="font-size: 1.05rem; color: #2E2650;">{_safe(res.get('emotional_summary', ''))}</div>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -263,7 +284,7 @@ if active == "checkin":
         st.markdown(
             f"""
             <div class="script-box">
-                💚 <b>RecoveryAI Note:</b> "{res.get('encouragement', '')}"
+                💚 <b>RecoveryAI Note:</b> "{_safe(res.get('encouragement', ''))}"
             </div>
             """,
             unsafe_allow_html=True
@@ -301,7 +322,7 @@ if active == "emergency":
         st.markdown(
             f"""
             <div class="script-box" style="font-size: 1.15rem; font-weight: 500;">
-                🗣️ "{res.get('coping_script', '')}"
+                🗣️ "{_safe(res.get('coping_script', ''))}"
             </div>
             """,
             unsafe_allow_html=True
@@ -327,7 +348,7 @@ if active == "emergency":
 # PAGE 3: SAFETY PLAN GENERATOR
 # ==========================================
 if active == "safety":
-    st.subheader("🛡️ Personal Safety & Prevention Plan Generator")
+    st.subheader("♾️ Personal Safety & Prevention Plan Generator")
     st.write("Prepare for high-risk situations by building a clear, actionable prevention plan.")
 
     st.markdown("**Select Today's Trigger (Zero Typing):**")
@@ -359,13 +380,13 @@ if active == "safety":
         res = st.session_state["safety_plan_res"]
 
         st.divider()
-        st.markdown(f"### 📋 Safety Plan: *{res.get('trigger_name', '')}*")
+        st.markdown(f"### 📋 Safety Plan: *{_safe(res.get('trigger_name', ''))}*")
 
         st.markdown(
             f"""
             <div class="recovery-card">
                 <div class="card-label">Proactive Prevention Plan</div>
-                <div style="font-size: 1.05rem; color: #4A3E7A; font-weight: 500;">{res.get('prevention_plan', '')}</div>
+                <div style="font-size: 1.05rem; color: #4A3E7A; font-weight: 500;">{_safe(res.get('prevention_plan', ''))}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -425,13 +446,13 @@ if active == "education":
         res = st.session_state["edu_res"]
 
         st.divider()
-        st.markdown(f"### 🔬 Insight: {res.get('topic', '')}")
+        st.markdown(f"### 🔬 Insight: {_safe(res.get('topic', ''))}")
 
         st.markdown(
             f"""
             <div class="recovery-card">
                 <div class="card-label">Why It Happens (Neurobiological Context)</div>
-                <div style="font-size: 1.05rem; line-height: 1.6; color: #2E2650;">{res.get('why_it_happens', '')}</div>
+                <div style="font-size: 1.05rem; line-height: 1.6; color: #2E2650;">{_safe(res.get('why_it_happens', ''))}</div>
             </div>
             """,
             unsafe_allow_html=True
@@ -444,7 +465,7 @@ if active == "education":
         st.markdown(
             f"""
             <div class="script-box">
-                🌟 <b>Positive Encouragement:</b> "{res.get('positive_encouragement', '')}"
+                🌟 <b>Positive Encouragement:</b> "{_safe(res.get('positive_encouragement', ''))}"
             </div>
             """,
             unsafe_allow_html=True
@@ -463,3 +484,7 @@ if active == "game":
     )
     render_stress_buster_game()
     st.caption("💡 Tip: play for 60 seconds when you feel a craving or spike. Short focused play interrupts the urge loop.")
+
+
+# Close the <main> landmark opened after navigation.
+st.markdown('</main>', unsafe_allow_html=True)
