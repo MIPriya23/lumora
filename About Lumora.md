@@ -8,14 +8,12 @@ pip install -r requirements.txt
 
 ### 3. Add your Gemini API key
 
-Create a file named `.env` in the project root with this single line (replace with your own key):
+use additional key provided in env
 
 ```env
 GEMINI_API_KEY=your_actual_key_here
 ```
 
-Get a free key at https://aistudio.google.com/.
-Do **not** commit the `.env` file — it is already listed in `.gitignore`.
 
 
 ### 4. Run the app

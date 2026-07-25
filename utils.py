@@ -41,8 +41,12 @@ PRESET_EDU_TOPICS = [
 ]
 
 
-def inject_custom_css():
-    """Inject pastel-palette, high-contrast, accessible, gently animated CSS."""
+def inject_custom_css() -> None:
+    """Inject the pastel-palette, WCAG-AA-compliant CSS into the Streamlit page.
+
+    Includes reduced-motion support, focus-visible outlines, and BaseWeb
+    overrides for consistent styling across Streamlit component versions.
+    """
     custom_css = """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -780,8 +784,8 @@ def render_risk_badge(risk_level: str) -> str:
     )
 
 
-def render_breathing_widget():
-    """Render animated 4-7-8 breathing circle (accessible)."""
+def render_breathing_widget() -> None:
+    """Render the animated 4-7-8 breathing circle (accessible)."""
     html = """
     <section class="breathing-box" role="region" aria-label="4-7-8 breathing exercise">
         <h3 style="margin: 0; color: #2E2650; font-size: 1.15rem;">
@@ -802,8 +806,8 @@ def render_breathing_widget():
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_stress_buster_game():
-    """Render the 'Catch the Bird — Fly the Stress' mini-game."""
+def render_stress_buster_game() -> None:
+    """Render the ‘Catch the Bird — Fly the Stress’ mindfulness mini-game."""
     game_html = """
     <!DOCTYPE html>
     <html>
